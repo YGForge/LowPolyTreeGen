@@ -1,0 +1,18 @@
+schema_version = "1.0.0"
+
+id = "generate_tree_plugin"
+version = "1.0.0"
+name = "Generate Tree Plugin"
+tagline = "A Blender add-on that procedurally generates low-poly trees - trunk, branches with secondary splits, leaf clusters and root systems - fully parametric and seeded for repeatable results. Made by someone who can't make 3D assets, for those who can't either."
+maintainer = "Yuriy <yura.imco@gmail.com>"
+type = "add-on"
+
+website = "https://github.com/YGForge"
+
+tags = ["Add Mesh", "Object"]
+
+blender_version_min = "5.0.1"
+
+license = [
+  "SPDX:MIT",
+]
