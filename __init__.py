@@ -9,6 +9,7 @@ from bpy.props import (
     FloatProperty,
     BoolProperty,
     StringProperty,
+    EnumProperty,
     PointerProperty,
 )
 from bpy.types import PropertyGroup, Operator, Panel
@@ -223,6 +224,21 @@ class TREEGEN_PG_Leaves(PropertyGroup):
         name="Generate Leaves", default=False,
         description="Disable to generate a bare tree with no leaf clusters",
     )
+    foliage_type: EnumProperty(
+        name="Foliage Type",
+        items=(
+            (
+                'ICOSPHERE', "Icosphere Clusters",
+                "Scatter deformed icosphere blobs along each branch and the canopy top",
+            ),
+            (
+                'PINE', "Pine Canopy",
+                "Build a single tapering stack of low-poly cone tiers along the trunk, like a conifer",
+            ),
+        ),
+        default='ICOSPHERE',
+        description="How the tree's foliage mass is shaped",
+    )
     merge_leaves_with_union: BoolProperty(
         name="Merge Leaves (Union)", default=True,
         description="Merge each branch's leaf clusters into one mesh via boolean UNION",
@@ -252,6 +268,87 @@ class TREEGEN_PG_Leaves(PropertyGroup):
             "the original full-strength stretch, and values above 1 push "
             "it further still"
         ),
+    )
+
+    pine_tier_count: IntProperty(
+        name="Tier Count", default=6, min=1, max=40,
+        description="How many stacked cone tiers make up the canopy",
+    )
+    pine_canopy_start: FloatProperty(
+        name="Canopy Start", default=0.30, min=0.0, max=0.95, subtype='FACTOR',
+        description="Fraction of the way up the trunk where the lowest, widest tier begins",
+    )
+    pine_base_radius: FloatProperty(
+        name="Base Radius", default=2.4, min=1.0,
+        description=(
+            "How many times wider than the trunk itself the lowest tier "
+            "flares out. Every tier's radius is measured relative to the "
+            "trunk's own (tapered) radius at that height, shrinking down to "
+            "exactly 1.0 (an exact fit) at the topmost tier, so the trunk "
+            "is never left wider than the foliage around it"
+        ),
+    )
+    pine_tier_overlap: FloatProperty(
+        name="Tier Overlap", default=0.45, min=0.0, max=0.95, subtype='FACTOR',
+        description="How far each tier's cone extends down into the tier below, hiding the seam between them",
+    )
+    pine_vertical_width: FloatProperty(
+        name="Vertical Width", default=1.0, min=0.0,
+        description=(
+            "Multiplier on each tier's own vertical height (how far its "
+            "apex reaches above its base), on top of Tier Overlap. No "
+            "upper limit, so tiers can be stretched arbitrarily tall"
+        ),
+    )
+    pine_taper: FloatProperty(
+        name="Taper", default=1.4, min=0.1,
+        description=(
+            "How quickly tiers shrink in radius going up. Higher values pull "
+            "the upper tiers in faster, ending in a sharper point"
+        ),
+    )
+    pine_core_width: FloatProperty(
+        name="Core Width", default=0.5, min=0.0, max=1.0, subtype='FACTOR',
+        description=(
+            "Radius of each tier's solid core, from the trunk's own "
+            "centerline (0, so needles spring directly out of it) to the "
+            "tier's full silhouette radius (1, where the needle tips land "
+            "on that same radius too - a smooth rounded cone with no "
+            "needles left showing)"
+        ),
+    )
+    pine_prickliness: FloatProperty(
+        name="Prickliness", default=0.35, min=0.0, max=1.0, subtype='FACTOR',
+        description=(
+            "How far each spike protrudes sideways beyond the tier's core "
+            "(see Core Width). 0 keeps spikes flush with the core; 1 makes "
+            "them stick out sharply - unless Core Width is 1, which always "
+            "pulls them back flush regardless of this value"
+        ),
+    )
+    pine_spike_tilt: FloatProperty(
+        name="Spike Tilt", default=0.3, min=0.0, max=1.0, subtype='FACTOR',
+        description=(
+            "How far each spike tilts from pointing straight out away from "
+            "the trunk (0) towards pointing straight down (1, almost "
+            "vertical)"
+        ),
+    )
+    pine_spike_horizontal_deform: FloatProperty(
+        name="Spike Horizontal Deform", default=0.0, min=0.0,
+        description=(
+            "Random horizontal deflection of each spike's angle, so they "
+            "aren't all perfectly radial (directed straight away from the "
+            "trunk's center) - the same idea as Roots' Lateral Curvature"
+        ),
+    )
+    pine_jitter: FloatProperty(
+        name="Jitter", default=0.15, min=0.0, max=1.0, subtype='FACTOR',
+        description="Random per-vertex variation applied to each tier's radius, so tiers don't look perfectly uniform",
+    )
+    pine_sides: IntProperty(
+        name="Sides", default=8, min=3, max=32,
+        description="Number of spikes around each tier",
     )
 
 
@@ -350,6 +447,7 @@ def generate_tree(context):
     leaves_decimate_ratio = mesh_s.leaves_decimate_ratio
 
     generate_leaves = leaf_s.generate_leaves
+    foliage_type = leaf_s.foliage_type
     merge_leaves_with_union = leaf_s.merge_leaves_with_union
     join_all_leaves = leaf_s.join_all_leaves
     leaves_per_branch_min = leaf_s.leaves_per_branch_min
@@ -361,6 +459,19 @@ def generate_tree(context):
     leaf_depth = leaf_s.leaf_depth
     leaf_height = leaf_s.leaf_height
     bottom_distortion = leaf_s.bottom_distortion
+
+    pine_tier_count = leaf_s.pine_tier_count
+    pine_canopy_start = leaf_s.pine_canopy_start
+    pine_base_radius = leaf_s.pine_base_radius
+    pine_tier_overlap = leaf_s.pine_tier_overlap
+    pine_vertical_width = leaf_s.pine_vertical_width
+    pine_taper = leaf_s.pine_taper
+    pine_core_width = leaf_s.pine_core_width
+    pine_prickliness = leaf_s.pine_prickliness
+    pine_spike_tilt = leaf_s.pine_spike_tilt
+    pine_spike_horizontal_deform = leaf_s.pine_spike_horizontal_deform
+    pine_jitter = leaf_s.pine_jitter
+    pine_sides = leaf_s.pine_sides
 
     # --------------------------------------------------------
     # GENERATED TREE COLLECTION
@@ -671,6 +782,201 @@ def generate_tree(context):
         pending_leaf_clusters.append(obj)
 
         return obj
+
+    # --------------------------------------------------------
+    # PINE CANOPY (alternate foliage type)
+    # --------------------------------------------------------
+
+    # These three read trunk_points/trunk_radius/trunk_segments (the bent
+    # centerline create_trunk built and its taper formula) by a fractional
+    # ring index, so the canopy can be positioned and sized as if it grows
+    # directly out of the trunk's own surface at any height in between
+    # rings, bend and all, instead of assuming a straight vertical trunk.
+
+    def trunk_position_at(ring_index):
+        ring_index = max(0.0, min(ring_index, len(trunk_points) - 1))
+        i0 = int(math.floor(ring_index))
+        i1 = min(i0 + 1, len(trunk_points) - 1)
+        return trunk_points[i0].lerp(trunk_points[i1], ring_index - i0)
+
+    def trunk_tangent_at(ring_index):
+        ring_index = max(0.0, min(ring_index, len(trunk_points) - 1))
+        i0 = int(math.floor(ring_index))
+        i1 = min(i0 + 1, len(trunk_points) - 1)
+        if i0 == i1:
+            i0 = max(0, i0 - 1)
+        return (trunk_points[i1] - trunk_points[i0]).normalized()
+
+    def trunk_radius_at(ring_index):
+        t = max(0.0, min(ring_index / trunk_segments, 1.0))
+        return trunk_radius * (1.0 - t * 0.82)
+
+    def create_pine_tier(
+        base_position, tangent, radius, height, sides, rng, material,
+        core_width, prickliness, spike_tilt, horizontal_deform,
+        jitter, tier_rotation, name,
+    ):
+        # One tier is a jittered, star-shaped cone built directly in world
+        # space around base_position: rim vertices alternate between a
+        # "notch" (sitting exactly on the core radius) and a "spike" tip
+        # (Prickliness controls how far it protrudes beyond the core,
+        # blended against Core Width so the two coincide - a plain rounded
+        # cone, no needles - once Core Width reaches 1. Spike Tilt blends
+        # each spike's direction from straight outward to straight down,
+        # and Horizontal Deform randomly deflects its angle off perfectly
+        # radial). tangent is the trunk's own local growth direction at
+        # this height, so the tier's apex leans the same way the trunk
+        # does instead of always pointing world-up.
+        bm = bmesh.new()
+
+        reference = Vector((0, 0, 1))
+        if abs(tangent.dot(reference)) > 0.9:
+            reference = Vector((1, 0, 0))
+        basis_x = tangent.cross(reference).normalized()
+        basis_y = tangent.cross(basis_x).normalized()
+
+        world_down = Vector((0.0, 0.0, -1.0))
+
+        # core_width sweeps the notch radius from the trunk's own
+        # centerline (0) out to the tier's full silhouette radius (1). The
+        # spike radius is blended the same way, from its fully-extended
+        # reach (core_width 0) down to that same core radius (core_width
+        # 1) - so at 1 the notch and spike land on the exact same circle
+        # and the star shape disappears into a smooth rounded cone, while
+        # at 0 the notches collapse to the trunk's centerline and the
+        # needles read as springing directly out of it.
+        core_radius = radius * core_width
+        max_spike_radius = radius * (1.0 + prickliness * 1.8)
+        spike_radius = max_spike_radius * (1.0 - core_width) + core_radius * core_width
+
+        rim_verts = []
+
+        for s in range(sides):
+            # angle_out is this spike's own slot; angle_in is the notch that
+            # follows it, halfway to the next spike's slot. Appending in
+            # that same angular order (spike, then its trailing notch) is
+            # what keeps the rim a simple alternating star instead of a
+            # self-crossing one - a notch appended out of angular order
+            # would make the fan below bowtie across itself.
+            angle_out = tier_rotation + (math.pi * 2 / sides) * s
+            angle_in = angle_out + (math.pi / sides)
+
+            deform = rng.uniform(-1.0, 1.0) * horizontal_deform * (math.pi / sides)
+            spike_angle = angle_out + deform
+            radial_dir = basis_x * math.cos(spike_angle) + basis_y * math.sin(spike_angle)
+            spike_dir = (radial_dir * (1.0 - spike_tilt) + world_down * spike_tilt).normalized()
+            spike_length = spike_radius * rng.uniform(1.0 - jitter, 1.0 + jitter)
+            spike_pos = base_position + spike_dir * spike_length
+            rim_verts.append(bm.verts.new(spike_pos))
+
+            r_in = core_radius * rng.uniform(1.0 - jitter, 1.0 + jitter)
+            inner_pos = base_position + (
+                basis_x * math.cos(angle_in) + basis_y * math.sin(angle_in)
+            ) * r_in
+            rim_verts.append(bm.verts.new(inner_pos))
+
+        apex = bm.verts.new(base_position + tangent * height)
+        base_center = bm.verts.new(base_position)
+
+        ring_count = len(rim_verts)
+        for i in range(ring_count):
+            a = rim_verts[i]
+            b = rim_verts[(i + 1) % ring_count]
+            bm.faces.new((apex, a, b))
+            bm.faces.new((base_center, b, a))
+
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+
+        mesh = bpy.data.meshes.new(name + "Mesh")
+        bm.to_mesh(mesh)
+        bm.free()
+
+        obj = bpy.data.objects.new(name, mesh)
+
+        move_to_tree_collection(obj)
+
+        if material:
+            obj.data.materials.append(material)
+
+        for polygon in obj.data.polygons:
+            polygon.use_smooth = False
+
+        return obj
+
+    def create_pine_canopy():
+        # Tiers are stacked along the trunk's own (possibly bent) centerline
+        # from Canopy Start up to the very last ring, widest at the bottom
+        # and narrowing towards the tip (Taper). Each tier's radius is
+        # measured relative to the trunk's own tapered radius at that ring,
+        # collapsing to an exact 1:1 fit by the last tier - so that tier's
+        # base exactly caps the trunk's tip, with nothing left exposed above
+        # or beside it. Each tier is also tall enough (Tier Overlap) to bury
+        # its own base inside the tier below, hiding the seam between them -
+        # Vertical Width then scales that height further still, unbounded.
+        trunk_top_index = len(trunk_points) - 1
+        start_index = pine_canopy_start * trunk_top_index
+        index_range = max(0.01, trunk_top_index - start_index)
+        last = max(1, pine_tier_count - 1)
+
+        base_indices = [start_index + (i / last) * index_range for i in range(pine_tier_count)]
+        base_positions = [trunk_position_at(bi) for bi in base_indices]
+
+        tier_objects = []
+
+        for i in range(pine_tier_count):
+            s = i / last
+            base_index = base_indices[i]
+            base_position = base_positions[i]
+
+            tangent = trunk_tangent_at(base_index)
+            radius = trunk_radius_at(base_index) * (1.0 + (pine_base_radius - 1.0) * (1.0 - s) ** pine_taper)
+
+            if i < pine_tier_count - 1:
+                step_distance = (base_positions[i + 1] - base_position).length
+            elif pine_tier_count > 1:
+                step_distance = (base_position - base_positions[i - 1]).length
+            else:
+                step_distance = index_range
+
+            tier_height = max(0.01, step_distance) * (1.0 + pine_tier_overlap) * pine_vertical_width
+            tier_rotation = rng_leaves.uniform(0.0, math.pi * 2)
+
+            tier = create_pine_tier(
+                base_position,
+                tangent,
+                radius,
+                tier_height,
+                pine_sides,
+                rng_leaves,
+                rng_leaves.choice(leaf_materials),
+                pine_core_width,
+                pine_prickliness,
+                pine_spike_tilt,
+                pine_spike_horizontal_deform,
+                pine_jitter,
+                tier_rotation,
+                f"PineTier_{i}",
+            )
+            tier_objects.append(tier)
+
+        bpy.ops.object.select_all(action='DESELECT')
+
+        canopy = tier_objects[0]
+        for tier in tier_objects:
+            tier.select_set(True)
+
+        context.view_layer.objects.active = canopy
+        bpy.ops.object.join()
+
+        canopy = context.active_object
+        canopy.name = "PineCanopy"
+
+        cleanup_mesh(canopy)
+
+        if decimate_leaves:
+            decimate_object(canopy, leaves_decimate_ratio)
+
+        return canopy
 
     # --------------------------------------------------------
     # DECIMATE (mesh simplification)
@@ -1075,7 +1381,7 @@ def generate_tree(context):
         # LEAVES
         # ----------------------------------------------------
 
-        if not is_root and generate_leaves:
+        if not is_root and generate_leaves and foliage_type == 'ICOSPHERE':
             cluster_count = rng_leaves.randint(leaves_per_branch_min, leaves_per_branch_max)
 
             for i in range(cluster_count):
@@ -1366,7 +1672,7 @@ def generate_tree(context):
     # TOP CANOPY
     # --------------------------------------------------------
 
-    if generate_leaves:
+    if generate_leaves and foliage_type == 'ICOSPHERE':
         pending_leaf_clusters.clear()
 
         top = trunk_points[-2]
@@ -1391,6 +1697,12 @@ def generate_tree(context):
                 all_leaf_objects.append(canopy_leaves)
         else:
             all_leaf_objects.extend(pending_leaf_clusters)
+    elif generate_leaves and foliage_type == 'PINE':
+        # A single tiered canopy built directly along the trunk axis,
+        # instead of per-branch clusters - see PINE CANOPY above.
+        pine_canopy = create_pine_canopy()
+        if pine_canopy:
+            all_leaf_objects.append(pine_canopy)
 
     # --------------------------------------------------------
     # JOIN ALL LEAVES INTO ONE MESH
@@ -1711,17 +2023,33 @@ class TREEGEN_PT_Panel(Panel):
 
             sub = body.column()
             sub.enabled = leaf_s.generate_leaves
-            sub.prop(leaf_s, "merge_leaves_with_union")
+            sub.prop(leaf_s, "foliage_type")
             sub.prop(leaf_s, "join_all_leaves")
-            sub.prop(leaf_s, "leaves_per_branch_min")
-            sub.prop(leaf_s, "leaves_per_branch_max")
-            sub.prop(leaf_s, "leaf_scale_min")
-            sub.prop(leaf_s, "leaf_scale_max")
-            sub.prop(leaf_s, "leaf_spread")
-            sub.prop(leaf_s, "leaf_width")
-            sub.prop(leaf_s, "leaf_depth")
-            sub.prop(leaf_s, "leaf_height")
-            sub.prop(leaf_s, "bottom_distortion", slider=True)
+
+            if leaf_s.foliage_type == 'ICOSPHERE':
+                sub.prop(leaf_s, "merge_leaves_with_union")
+                sub.prop(leaf_s, "leaves_per_branch_min")
+                sub.prop(leaf_s, "leaves_per_branch_max")
+                sub.prop(leaf_s, "leaf_scale_min")
+                sub.prop(leaf_s, "leaf_scale_max")
+                sub.prop(leaf_s, "leaf_spread")
+                sub.prop(leaf_s, "leaf_width")
+                sub.prop(leaf_s, "leaf_depth")
+                sub.prop(leaf_s, "leaf_height")
+                sub.prop(leaf_s, "bottom_distortion", slider=True)
+            else:
+                sub.prop(leaf_s, "pine_tier_count")
+                sub.prop(leaf_s, "pine_canopy_start", slider=True)
+                sub.prop(leaf_s, "pine_base_radius")
+                sub.prop(leaf_s, "pine_tier_overlap", slider=True)
+                sub.prop(leaf_s, "pine_vertical_width")
+                sub.prop(leaf_s, "pine_taper")
+                sub.prop(leaf_s, "pine_core_width", slider=True)
+                sub.prop(leaf_s, "pine_prickliness", slider=True)
+                sub.prop(leaf_s, "pine_spike_tilt", slider=True)
+                sub.prop(leaf_s, "pine_spike_horizontal_deform")
+                sub.prop(leaf_s, "pine_jitter", slider=True)
+                sub.prop(leaf_s, "pine_sides")
 
         layout.separator()
 
