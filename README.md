@@ -71,13 +71,35 @@ Mesh Simplification
     generation fast; enable and set a ratio to reduce poly count.
 
 Leaves
-    Toggle leaf generation on/off, whether each branch's leaf clusters
-    are merged via a Boolean union, whether all leaf geometry across
-    the whole tree is joined into a single object, how many leaf
-    clusters spawn per branch, their scale range, how far they can
-    drift from their branch attach point (Spread), individual leaf
-    cluster width/depth/height, and Bottom Distortion (how irregular
-    and "dangling" the underside of each cluster looks).
+    Toggle leaf generation on/off and pick a Foliage Type:
+
+    - Icosphere Clusters: the original look. Whether each branch's leaf
+      clusters are merged via a Boolean union, whether all leaf geometry
+      across the whole tree is joined into a single object, how many
+      leaf clusters spawn per branch, their scale range, how far they
+      can drift from their branch attach point (Spread), individual
+      leaf cluster width/depth/height, and Bottom Distortion (how
+      irregular and "dangling" the underside of each cluster looks).
+
+    - Pine Canopy: a single tapering stack of low-poly cone tiers built
+      directly along the trunk's own (possibly bent) centerline, instead
+      of clusters scattered on branches - each tier sized relative to
+      the trunk's own tapered width at that height, and the topmost
+      tier's base landing exactly on the trunk's tip. Tier Count, where
+      the lowest tier starts up the trunk (Canopy Start), how many times
+      wider than the trunk the lowest tier flares out (Base Radius), how
+      much each tier overlaps into the one below it (Tier Overlap), an
+      unbounded multiplier stretching every tier's vertical height on top
+      of that (Vertical Width), how quickly tiers narrow going up
+      (Taper), how wide each tier's solid core is - from the trunk's own
+      centerline up to the tier's full silhouette radius, where it reads
+      as a smooth needle-less cone (Core Width), how far each tier's
+      spikes protrude sideways beyond that core (Prickliness, pulled back
+      flush once Core Width reaches 1), how far spikes tilt from outward
+      towards straight down (Spike Tilt), random sideways deflection of
+      each spike off perfectly radial (Spike Horizontal Deform),
+      per-vertex randomness (Jitter), and the number of spikes per tier
+      (Sides).
 
 
 Notes
