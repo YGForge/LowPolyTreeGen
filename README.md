@@ -28,42 +28,48 @@ Change "Seed" to get a different random variation while keeping every other sett
 Panel Sections
 ---------------
 
-Tree
-    Core trunk shape: seed, target collection name, overall tree height, trunk radius, trunk ring/segment count, trunk side count (roundness), and trunk bend (how far the trunk leans toward horizontal by the top).
+**Tree**
 
-Main Branches
-    How many branches grow off the trunk, the height range along the trunk they can start in, minimum spacing between them, how evenly they're distributed around the trunk (Angle Order), the chance of a whorl of branches at the same height, branch length range and length mix, thickness, curvature, segment count, and whether branches get joined into the trunk as one object.
+Core trunk shape: seed, target collection name, overall tree height, trunk radius, trunk ring/segment count, trunk side count (roundness), and trunk bend (how far the trunk leans toward horizontal by the top).
 
-Branch Secondary
-    Secondary (twig-level) splits off each main branch: chance of a split occurring, the position range along the branch where splits can happen, how many secondaries spawn per split, their length (as a fraction of the parent branch) and thickness, and whether each secondary is Boolean-trimmed into its parent before joining.
+**Main Branches**
 
-Roots
-    A below-ground root system growing from the trunk base: count, how far from the trunk axis roots attach, thickness, radius clamps, length, vertical and lateral curvature, segment count, upward phase (initial arc before diving down), secondary root splits (same idea as branch secondaries), and whether roots and their secondaries are Boolean-trimmed before joining into the trunk.
+How many branches grow off the trunk, the height range along the trunk they can start in, minimum spacing between them, how evenly they're distributed around the trunk (Angle Order), the chance of a whorl of branches at the same height, branch length range and length mix, thickness, curvature, segment count, and whether branches get joined into the trunk as one object.
 
-Mesh Simplification
-    Optional Decimate passes for the trunk (and roots, if merged into it) and for the merged leaf meshes. Off by default to keep generation fast; enable and set a ratio to reduce poly count.
+**Branch Secondary**
 
-Leaves
-    Toggle leaf generation on/off and pick a Foliage Type:
+Secondary (twig-level) splits off each main branch: chance of a split occurring, the position range along the branch where splits can happen, how many secondaries spawn per split, their length (as a fraction of the parent branch) and thickness, and whether each secondary is Boolean-trimmed into its parent before joining.
 
-    - Icosphere Clusters: the original look. Whether each branch's leaf clusters are merged via a Boolean union, whether all leaf geometry across the whole tree is joined into a single object, how many leaf clusters spawn per branch, their scale range, how far they can drift from their branch attach point (Spread), individual leaf cluster width/depth/height, and Bottom Distortion (how irregular and "dangling" the underside of each cluster looks).
+**Roots**
 
-    - Pine Canopy: a single tapering stack of low-poly cone tiers built directly along the trunk's own (possibly bent) centerline, instead of clusters scattered on branches. Each tier is sized relative to the trunk's own tapered width at that height, and the topmost tier's base lands exactly on the trunk's tip.
+A below-ground root system growing from the trunk base: count, how far from the trunk axis roots attach, thickness, radius clamps, length, vertical and lateral curvature, segment count, upward phase (initial arc before diving down), secondary root splits (same idea as branch secondaries), and whether roots and their secondaries are Boolean-trimmed before joining into the trunk.
 
-      Parameters include:
+**Mesh Simplification**
 
-      - Tier Count
-      - Canopy Start: where the lowest tier starts up the trunk
-      - Base Radius: how many times wider than the trunk the lowest tier flares out
-      - Tier Overlap: how much each tier overlaps into the one below it
-      - Vertical Width: an unbounded multiplier stretching every tier's vertical height
-      - Taper: how quickly tiers narrow going up
-      - Core Width: how wide each tier's solid core is, from the trunk's own centerline up to the tier's full silhouette radius, where it reads as a smooth, needle-less cone
-      - Prickliness: how far spikes protrude sideways beyond that core, pulled back flush once Core Width reaches 1
-      - Spike Tilt: how far spikes tilt from outward towards straight down
-      - Spike Horizontal Deform: random sideways deflection of each spike off perfectly radial
-      - Jitter: per-vertex randomness
-      - Sides: the number of spikes per tier
+Optional Decimate passes for the trunk (and roots, if merged into it) and for the merged leaf meshes. Off by default to keep generation fast; enable and set a ratio to reduce poly count.
+
+**Leaves**
+
+Toggle leaf generation on/off and pick a Foliage Type:
+
+- Icosphere Clusters: the original look. Whether each branch's leaf clusters are merged via a Boolean union, whether all leaf geometry across the whole tree is joined into a single object, how many leaf clusters spawn per branch, their scale range, how far they can drift from their branch attach point (Spread), individual leaf cluster width/depth/height, and Bottom Distortion (how irregular and "dangling" the underside of each cluster looks).
+
+- Pine Canopy: a single tapering stack of low-poly cone tiers built directly along the trunk's own (possibly bent) centerline, instead of clusters scattered on branches. Each tier is sized relative to the trunk's own tapered width at that height, and the topmost tier's base lands exactly on the trunk's tip.
+
+  Parameters include:
+
+  - Tier Count
+  - Canopy Start: where the lowest tier starts up the trunk
+  - Base Radius: how many times wider than the trunk the lowest tier flares out
+  - Tier Overlap: how much each tier overlaps into the one below it
+  - Vertical Width: an unbounded multiplier stretching every tier's vertical height
+  - Taper: how quickly tiers narrow going up
+  - Core Width: how wide each tier's solid core is, from the trunk's own centerline up to the tier's full silhouette radius, where it reads as a smooth, needle-less cone
+  - Prickliness: how far spikes protrude sideways beyond that core, pulled back flush once Core Width reaches 1
+  - Spike Tilt: how far spikes tilt from outward towards straight down
+  - Spike Horizontal Deform: random sideways deflection of each spike off perfectly radial
+  - Jitter: per-vertex randomness
+  - Sides: the number of spikes per tier
 
 
 Notes
