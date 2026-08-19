@@ -957,26 +957,17 @@ def generate_tree(context):
                 tier_rotation,
                 f"PineTier_{i}",
             )
+            if decimate_leaves:
+                decimate_object(tier, leaves_decimate_ratio)
+
             tier_objects.append(tier)
 
-        bpy.ops.object.select_all(action='DESELECT')
-
-        canopy = tier_objects[0]
-        for tier in tier_objects:
-            tier.select_set(True)
-
-        context.view_layer.objects.active = canopy
-        bpy.ops.object.join()
-
-        canopy = context.active_object
-        canopy.name = "PineCanopy"
-
-        cleanup_mesh(canopy)
-
-        if decimate_leaves:
-            decimate_object(canopy, leaves_decimate_ratio)
-
-        return canopy
+        # Left as separate per-tier objects, not pre-joined into one mesh -
+        # otherwise Join All Leaves Into One Mesh would have nothing left to
+        # do for a Pine Canopy. The JOIN ALL LEAVES step further down joins
+        # them (along with everything else in all_leaf_objects) if and only
+        # if that toggle is on.
+        return tier_objects
 
     # --------------------------------------------------------
     # DECIMATE (mesh simplification)
@@ -1698,11 +1689,11 @@ def generate_tree(context):
         else:
             all_leaf_objects.extend(pending_leaf_clusters)
     elif generate_leaves and foliage_type == 'PINE':
-        # A single tiered canopy built directly along the trunk axis,
-        # instead of per-branch clusters - see PINE CANOPY above.
-        pine_canopy = create_pine_canopy()
-        if pine_canopy:
-            all_leaf_objects.append(pine_canopy)
+        # A tiered canopy built directly along the trunk axis, instead of
+        # per-branch clusters - see PINE CANOPY above. Tiers stay as
+        # separate objects here so JOIN ALL LEAVES INTO ONE MESH further
+        # down is what decides whether they end up joined.
+        all_leaf_objects.extend(create_pine_canopy())
 
     # --------------------------------------------------------
     # JOIN ALL LEAVES INTO ONE MESH
